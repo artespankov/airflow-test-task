@@ -1,0 +1,25 @@
+docker pull apache/airflow
+
+docker exec -it 39a9 bash
+
+
+
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+add the line with the new generated key to ~/.bash_profile file in this way: export FERNET_KEY="new_generated_key".
+add to docker-compose
+environment:
+    - FERNET_KEY=${FERNET_KEY}
+
+
+Airflow Commands
+
+airflow list_dags
+airflow webserver
+airflow connections -l
+airflow list_tasks <dag_id>
+airflow list_dag_runs <dag_id>
+airflow trigger_dag <dag_id>
+airflow pause/unpause <dag_id>
+airflow test - test task in dag without storing it in DB, so no track in UI
+
+
