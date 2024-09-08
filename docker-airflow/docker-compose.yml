@@ -27,7 +27,7 @@ services:
             - postgres
             - mysql
         environment:
-            - LOAD_EX=n
+            - LOAD_EX=y
             - EXECUTOR=Local
             - INSTALL_MYSQL=y
             - AIRFLOW__SMTP__SMTP_HOST=smtp.gmail.com
