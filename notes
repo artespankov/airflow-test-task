@@ -20,6 +20,15 @@ airflow list_tasks <dag_id>
 airflow list_dag_runs <dag_id>
 airflow trigger_dag <dag_id>
 airflow pause/unpause <dag_id>
-airflow test - test task in dag without storing it in DB, so no track in UI
+airflow test <dag_id> <task_id> <execution_date>- test task in dag without storing it in DB, so no track in UI
+airflow next_execution <dag_id>
+airflow delete
 
+airflow next_execution dag_id - test task in dag without storing it in DB, so no track in UI
 
+Subdag
+Groups parallel repetitive tasks into single entity - subsequence of dags, or subdags
+
+Hook
+Automated utils for data transferring between storages - mysql to postgres, Redshift to S3 etc
+without using their native functions. Uses Connection for bothe source and destination

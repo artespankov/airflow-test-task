@@ -1,6 +1,6 @@
 # Training project based on docker-airflow image
 
-
+![diagram.png](diagram.png)
 
 
 # docker-airflow
