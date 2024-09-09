@@ -11,6 +11,39 @@ environment:
     - FERNET_KEY=${FERNET_KEY}
 
 
+ETL design
+1. ETL architecture - type: append, replacement, in place updates + frequency: daily, weekly, monthly etc
+2. Dimension & Fact tables
+
+
+Airflow
+Task queue system on top of Metadata DB
+1. Metadata- db to store status of DAG runs, tasks scheduled etc. default - SQLlite, Production - MySQL/Postgres
+2. Scheduler - instructs and triggers task on worker nodes. Python process that reads definition of dag and task from metadata db and applies to worker
+3. Web server - UI, flask app connected to Metadata DB
+4. Executor
+5. Sequential
+6. Local
+7. Celery
+8. Dask
+9. Mesos
+10. Kubernetes
+11. Queue system - scheduler sends a task to queue from which workers can pick those for execution
+12. Single/multi node architecture (scheduler/webserver on master node, workers on separate nodes
+
+Executors
+
+1. Sequential (default) - one task at a time, in linear fashion, no parallelism. For testing purposes
+2. Local - executes tasks locally ( the same machine as webserver, scheduler and other components) and in parallel -
+using multiprocessing library of Python.
+Limited to single machine in resources and as single point of failure.
+Parallelism (max number of tasks that can run concurrently on the whole Airflow setup) vs DAG concurrency
+(number of tasks within the scope of DAG). Uses DB, needed to be installed in separate instance
+3. Celery - good way to scale the number of workers. It can distribute task load among multiple worker nodes.
+ Celery - async queue system that uses task system using queue framework like rabbitMQ
+ or Redis to manage communication between multiple tasks. Uses DB, needed to be installed in separate instance
+
+
 Airflow Commands
 
 airflow list_dags
@@ -42,13 +75,20 @@ until new file arrives to pick it into processing
 - Operator (Action Operator) - BashOperator, PythonOperator, BigQueryOpearator
 
 
-
 Subdag
 Groups parallel repetitive tasks into single entity - subsequence of dags, or subdags
 
 Hook
 Automated utils for data transferring between storages - mysql to postgres, Redshift to S3 etc
 without using their native functions. Uses Connection for bothe source and destination
+
+X com - message exchange between tasks
+stored in Airflow metadata DB (accessible via UI)
+Defined by key value pair and timestamp
+Push() in t1, data is available to all tasks in the DAG, pull() in t2
+
+Variables - stored in metadata DB, can be used in all dags
+Dummy operator - does nothing, used to pass’s control between groups of tasks, glueing them
 
 Sensor Operators
 Keep executing at a time interval and succeed when criteria is met and fails when they time out
@@ -81,6 +121,30 @@ Values are passed between the tasks with XCOMs
 
 airflow.cfg
 For all paths, use absolute path instead of relative path
+
+Trigger rules
+Allows to trigger the task not depending on success of all of its dependencies (parent tasks)
+One success - at least one parent succeeds
+All success (default)
+All done
+All failed
+One failed
+None failed - all parents in success/skip
+None skip - success/failed/upstream_failed
+Dummy
+
+.airflowignore - list of files airflow must skip
+Used in test ends - put all production dags in ignore file and only run test
+Should be put in DAG_FOLDER (scope - this dir + subdirs)
+
+Zombie
+Situation when task stuck in running state.
+Periodically worker have to send heartbeat to scheduler,
+ when it doesn’t get heartbeats within particular set time - scheduler kills the task
+
+Undead
+In situation when the task is running & sends heartbeats to scheduler but airflow is not aware of it's existence
+such task is called Undead
 
 
 -----
