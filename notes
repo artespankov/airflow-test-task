@@ -36,7 +36,8 @@ Atomic - run alone, not sharing resources with other tasks
 Idempotent - repeatable runs produce the same result
 Once Operator is instantiated - it becomes a Task
 Every operator derives from the BaseOperator
-- Sensor operators - keep run until certain condition is met - FileSensor checks the directory until new file arrives to pick it into processing
+- Sensor operators - keep run until certain condition is met - FileSensor checks the directory
+until new file arrives to pick it into processing
 - Transfer Operator - moves data between directions, MySQLToHiveTransfer, S3ToRedshiftTransfer
 - Operator (Action Operator) - BashOperator, PythonOperator, BigQueryOpearator
 
@@ -87,7 +88,8 @@ Unique keys
 Incremental - only append
 Incremental + unique key = identify wether item should be updated or appended
 Postgres emulation of MERGE: 2 steps
-Delete existing records: DBT first deletes rows from the target table where the unique_key matches rows from the new incremental dataset.
+Delete existing records: DBT first deletes rows from the target table where the unique_key matches
+rows from the new incremental dataset.
 Insert new records: After deleting, DBT inserts the new or updated rows into the target table.
 
 {{ config(
@@ -103,28 +105,36 @@ FROM source_table
 WHERE updated_at > (SELECT COALESCE(MAX(updated_at), '1970-01-01') FROM {{ this }})
 
 Query for New/Updated Rows: The query selects new or updated rows based on the updated_at column.
-Delete Matching Rows: If there are existing rows in the target table that match the unique_key (e.g., id), DBT deletes those rows.
+Delete Matching Rows: If there are existing rows in the target table that match the unique_key (e.g., id),
+DBT deletes those rows.
 Insert New Data: DBT inserts the new or updated data into the table.
 
 
 Key Considerations and Pitfalls with unique_key on PostgreSQL
 1. Handling Large Datasets
-Since the DELETE operation is performed before the insert, for large tables, this approach can be inefficient. If many rows are updated frequently, the repeated deletes and inserts can become costly.
+Since the DELETE operation is performed before the insert, for large tables, this approach can be inefficient.
+If many rows are updated frequently, the repeated deletes and inserts can become costly.
 Optimization:
 * Ensure the unique_key columns are indexed to improve the efficiency of both the DELETE and INSERT operations.
 * Keep the incremental load as small as possible by correctly filtering for new or updated data in the source query.
 2. Locking and Performance Issues
-When DBT runs the DELETE operation in PostgreSQL, it can cause table locks, especially if there are many updates. The table may lock during the deletion, blocking other queries trying to access the same data. This can slow down or halt other operations, particularly in a production database.
+When DBT runs the DELETE operation in PostgreSQL, it can cause table locks, especially if there are many updates.
+The table may lock during the deletion, blocking other queries trying to access the same data. This can slow down
+or halt other operations, particularly in a production database.
 Solution:
 * Schedule incremental runs during off-peak hours to avoid conflicts with other operations.
 * Use partitioning on your PostgreSQL tables, if possible, to limit the scope of the DELETE operation.
 3. Deleted Data in Source Table
-If a record in the source table has been deleted, the DBT incremental model will not automatically delete the corresponding record in the target table during an incremental run. This is because DBT doesn’t have visibility into deletions unless you explicitly account for it in your query logic.
+If a record in the source table has been deleted, the DBT incremental model will not automatically delete the
+corresponding record in the target table during an incremental run. This is because DBT doesn’t have visibility
+into deletions unless you explicitly account for it in your query logic.
 Solution:
-* Implement soft-deletes using a flag (e.g., is_deleted column) in the source table, and adjust your DBT query to delete rows from the target table where is_deleted = TRUE.
+* Implement soft-deletes using a flag (e.g., is_deleted column) in the source table, and adjust your DBT query to
+delete rows from the target table where is_deleted = TRUE.
 * Alternatively, schedule a periodic full-refresh to clean up any deleted rows in the target table.
 4. Duplicate Records
-If you incorrectly configure the unique_key, or if your query pulls in duplicate records, you may end up with duplicates in the target table. PostgreSQL doesn’t have a mechanism like MERGE to prevent this from happening automatically.
+If you incorrectly configure the unique_key, or if your query pulls in duplicate records, you may end up with
+duplicates in the target table. PostgreSQL doesn’t have a mechanism like MERGE to prevent this from happening automatically.
 Solution:
 * Ensure that the unique_key properly identifies unique rows in your dataset (it could be a composite key if necessary).
 * Use DBT tests to enforce uniqueness (e.g., unique test in your schema.yml file).
@@ -140,15 +150,19 @@ models:
           - unique
           - not_null
 5. Handling Late Arriving or Updated Data
-If data arrives late or is updated after the initial incremental load, DBT will only process it in subsequent runs if the query is designed correctly. If you're only filtering based on updated_at, make sure the logic accounts for late-arriving records.
+If data arrives late or is updated after the initial incremental load, DBT will only process it in subsequent runs
+if the query is designed correctly. If you're only filtering based on updated_at, make sure the logic accounts
+for late-arriving records.
 Solution:
-* Use a time window in your incremental filtering logic. Instead of selecting records only after the last maximum updated_at, you can use a broader range, such as the last 24 hours.
+* Use a time window in your incremental filtering logic. Instead of selecting records only after the last maximum
+updated_at, you can use a broader range, such as the last 24 hours.
 Example:
 sql
 Copy code
 WHERE updated_at > (SELECT MAX(updated_at) FROM {{ this }}) - INTERVAL '1 day'
 6. Multiple unique_key Columns (Composite Keys)
-If the uniqueness of your records is determined by multiple columns (a composite key), you need to ensure all the relevant columns are included in the unique_key configuration.
+If the uniqueness of your records is determined by multiple columns (a composite key), you need to ensure all
+the relevant columns are included in the unique_key configuration.
 Example with composite keys:
 sql
 Copy code
@@ -158,7 +172,9 @@ Copy code
 ) }}
 Ensure that all columns in the composite key are indexed in PostgreSQL to optimize both the DELETE and INSERT operations.
 7. Incremental Update Logic:
-The logic you use for pulling updated rows must be robust enough to ensure you capture all relevant data. Typically, you filter on a timestamp column (like updated_at or created_at), but any incorrect filtering could lead to missed updates or duplicate data being inserted.
+The logic you use for pulling updated rows must be robust enough to ensure you capture all relevant data. Typically,
+you filter on a timestamp column (like updated_at or created_at), but any incorrect filtering could lead
+to missed updates or duplicate data being inserted.
 Best Practice:
 * Filter by a timestamp column to ensure you're pulling only new or changed data:
 sql
@@ -166,20 +182,30 @@ Copy code
 WHERE updated_at > (SELECT COALESCE(MAX(updated_at), '1970-01-01') FROM {{ this }})
 Summary of Specifics for PostgreSQL
 * No Native Merge: DBT uses a DELETE and INSERT approach instead of a MERGE statement in PostgreSQL.
-* Performance Impacts: Be mindful of performance impacts related to DELETE operations, particularly on large datasets or highly concurrent environments.
-* Correct Key Definition: Make sure your unique_key accurately reflects the unique nature of each record, and that the key is indexed for efficient lookup and deletion.
-* Testing: Use DBT tests (e.g., unique, not_null) to validate that the unique_key works as expected and that there are no duplicates.
-* Full Refreshes: Consider scheduling periodic full-refreshes to clean up deleted or missed data in case the incremental model doesn’t handle certain scenarios.
-By keeping these specifics in mind, you can avoid common pitfalls when using unique_key with PostgreSQL in DBT and ensure your incremental models run efficiently and accurately.
+* Performance Impacts: Be mindful of performance impacts related to DELETE operations, particularly on large datasets
+or highly concurrent environments.
+* Correct Key Definition: Make sure your unique_key accurately reflects the unique nature of each record,
+and that the key is indexed for efficient lookup and deletion.
+* Testing: Use DBT tests (e.g., unique, not_null) to validate that the unique_key works as expected
+and that there are no duplicates.
+* Full Refreshes: Consider scheduling periodic full-refreshes to clean up deleted or missed data
+in case the incremental model doesn’t handle certain scenarios.
+By keeping these specifics in mind, you can avoid common pitfalls when using unique_key with PostgreSQL
+in DBT and ensure your incremental models run efficiently and accurately.
 
 ———
 
 
-Without unique_key: By default, DBT will just append new data to the existing table whenever you run the model in an incremental fashion. If the source table is updated or changed over time, there could be duplicates or outdated records.
-With unique_key: When a unique_key is specified, DBT will ensure that any existing rows in the target table that have the same unique_key will be updated, instead of just appending new records.
+Without unique_key: By default, DBT will just append new data to the existing table whenever you run the model
+in an incremental fashion. If the source table is updated or changed over time, there could be duplicates or outdated records.
+With unique_key: When a unique_key is specified, DBT will ensure that any existing rows in the target table
+that have the same unique_key will be updated, instead of just appending new records.
 
-Incremental logic: You must write your SQL query in a way that pulls only new or updated records when using the unique_key. This typically involves a filter on a column like updated_at or created_at.
-Database compatibility: Not all databases may support the unique_key functionality in the same way. For example, some databases may handle updates differently than others, so it's important to check how DBT's incremental strategy is implemented for your specific database.
+Incremental logic: You must write your SQL query in a way that pulls only new or updated records when using the unique_key.
+This typically involves a filter on a column like updated_at or created_at.
+Database compatibility: Not all databases may support the unique_key functionality in the same way. For example,
+some databases may handle updates differently than others, so it's important to check how DBT's incremental strategy
+is implemented for your specific database.
 
 
 Ensure the correct unique keys are selected,
@@ -192,13 +218,18 @@ Periodically refresh data to correct for edge cases.
     * Duplicates in the target table
     * Failed updates where some records aren't updated as expected
     * Example - same id on a multiple records (not considering updated_at)
-* DBT by default don’t handle deletinons - when rows were deleted (or soft-deleted, marked as inactive)  from source - leads to situation when rows deleted in source still persist in your target table
-* Accumulating of soft-deleted source entries over time, dbt don’t automatically delete or soft-delete such entries, and takes them into target
+* DBT by default don’t handle deletinons - when rows were deleted (or soft-deleted, marked as inactive)  from source
+- leads to situation when rows deleted in source still persist in your target table
+* Accumulating of soft-deleted source entries over time, dbt don’t automatically delete or soft-delete such entries,
+and takes them into target
     * Either delete/mark entries with cronjob
     * Do full-refresh update periodically
-* Don’t forget to filter by updated_at/created_at - inefficient updates (update many rows each time) / duplicate rows (appended old entries with new
+* Don’t forget to filter by updated_at/created_at - inefficient updates (update many rows each time) / duplicate rows
+(appended old entries with new
 * Validate data integrity with tests
     * Use DBT tests such as unique and not_null
-* Scheduled periodical full-refreshes even for incremental models - covers changes of unique keys and significant upstream changes
+* Scheduled periodical full-refreshes even for incremental models - covers changes of unique keys and significant
+upstream changes
 * Multiple keys in unique key + lack of indexes = slow incremental updates
-* Late-arriving data: consider using a window of time (e.g., processing records from the last 7 days) instead of relying on the exact max updated_at value
+* Late-arriving data: consider using a window of time (e.g., processing records from the last 7 days) instead
+of relying on the exact max updated_at value
