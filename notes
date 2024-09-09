@@ -138,10 +138,6 @@ duplicates in the target table. PostgreSQL doesn’t have a mechanism like MERGE
 Solution:
 * Ensure that the unique_key properly identifies unique rows in your dataset (it could be a composite key if necessary).
 * Use DBT tests to enforce uniqueness (e.g., unique test in your schema.yml file).
-yaml
-Copy code
-version: 2
-
 models:
   - name: your_model_name
     columns:
@@ -157,15 +153,11 @@ Solution:
 * Use a time window in your incremental filtering logic. Instead of selecting records only after the last maximum
 updated_at, you can use a broader range, such as the last 24 hours.
 Example:
-sql
-Copy code
 WHERE updated_at > (SELECT MAX(updated_at) FROM {{ this }}) - INTERVAL '1 day'
 6. Multiple unique_key Columns (Composite Keys)
 If the uniqueness of your records is determined by multiple columns (a composite key), you need to ensure all
 the relevant columns are included in the unique_key configuration.
 Example with composite keys:
-sql
-Copy code
 {{ config(
     materialized='incremental',
     unique_key=['id', 'updated_at']
@@ -177,8 +169,6 @@ you filter on a timestamp column (like updated_at or created_at), but any incorr
 to missed updates or duplicate data being inserted.
 Best Practice:
 * Filter by a timestamp column to ensure you're pulling only new or changed data:
-sql
-Copy code
 WHERE updated_at > (SELECT COALESCE(MAX(updated_at), '1970-01-01') FROM {{ this }})
 Summary of Specifics for PostgreSQL
 * No Native Merge: DBT uses a DELETE and INSERT approach instead of a MERGE statement in PostgreSQL.
